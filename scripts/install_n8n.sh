@@ -2,53 +2,46 @@
 set -euo pipefail
 
 # ------------------------------------------------------------------
-# Credentials injected by Terraform (placeholders)
+# Credentials injected by Terraform
 # ------------------------------------------------------------------
 N8N_BASIC_AUTH_USER="__N8N_USER__"
 N8N_BASIC_AUTH_PASSWORD="__N8N_PASSWORD__"
 
-# Ensure all files are created in the user's home directory
 cd "$HOME"
 
-# ------------------------------------------------------------------
-# Escape credentials for safe YAML single-quoted usage
-# YAML rule: inside single quotes, a single quote is written as ''
-# ------------------------------------------------------------------
+# Escape credentials for YAML-safe single quotes
 ESCAPED_USER=$(printf '%s' "$N8N_BASIC_AUTH_USER" | sed "s/'/''/g")
 ESCAPED_PASSWORD=$(printf '%s' "$N8N_BASIC_AUTH_PASSWORD" | sed "s/'/''/g")
 
 # ------------------------------------------------------------------
-# Install Docker Engine + docker compose plugin (Ubuntu)
+# Install Docker Engine + docker compose plugin
 # ------------------------------------------------------------------
 sudo apt-get update -y
 sudo apt-get install -y ca-certificates curl gnupg lsb-release
 
-# Docker GPG key
 if [ ! -f /etc/apt/keyrings/docker.gpg ]; then
     sudo mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
       | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 fi
 
-# Docker APT repo
-DOCKER_REPO_LINE="deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-if ! grep -q "download.docker.com/linux/ubuntu" /etc/apt/sources.list.d/docker.list 2>/dev/null; then
-    echo "$DOCKER_REPO_LINE" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-fi
+echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+ https://download.docker.com/linux/ubuntu \
+ $(lsb_release -cs) stable" \
+ | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 sudo apt-get update -y
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# ------------------------------------------------------------------
-# Add the real user to the docker group (if we know who that is)
-# ------------------------------------------------------------------
+# Add actual real user to docker group
 REAL_USER="${SUDO_USER:-${USER:-}}"
 if [ -n "$REAL_USER" ] && id "$REAL_USER" >/dev/null 2>&1; then
     sudo usermod -aG docker "$REAL_USER"
 fi
 
 # ------------------------------------------------------------------
-# Create docker-compose.yml with injected, safely-quoted credentials
+# Create docker-compose.yml with correct Pacific timezone
 # ------------------------------------------------------------------
 cat <<EOF | sudo tee docker-compose.yml > /dev/null
 version: "3.8"
@@ -61,7 +54,7 @@ services:
     ports:
       - "5678:5678"
     environment:
-      - GENERIC_TIMEZONE=Europe/Madrid
+      - GENERIC_TIMEZONE=America/Los_Angeles
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER='$ESCAPED_USER'
       - N8N_BASIC_AUTH_PASSWORD='$ESCAPED_PASSWORD'
@@ -71,11 +64,12 @@ services:
 EOF
 
 # ------------------------------------------------------------------
-# Prepare volume and start container
+# Prepare n8n data volume
 # ------------------------------------------------------------------
 mkdir -p n8n_data
-# n8n container runs as node:node (1000:1000)
 sudo chown -R 1000:1000 n8n_data
 
-# Use docker compose v2 (plugin), not legacy docker-compose
+# ------------------------------------------------------------------
+# Start n8n
+# ------------------------------------------------------------------
 sudo docker compose -p n8n up -d
