@@ -1,7 +1,38 @@
-resource "oci_core_instance" "n8n_instance" {
-  display_name = "n8n-instance"
-  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+terraform {
+  required_providers {
+    oci = {
+      source  = "hashicorp/oci"
+      version = "~> 7.26.1"
+    }
+  }
+}
+
+provider "oci" {
+  region = "us-sanjose-1"
+}
+
+# ---------------------------------------------------------
+# Data Sources
+# ---------------------------------------------------------
+
+data "oci_identity_availability_domains" "ads" {
   compartment_id = var.tenancy_ocid
+}
+
+data "oci_core_images" "ubuntu" {
+  compartment_id = var.tenancy_ocid
+  operating_system = "Canonical Ubuntu"
+  operating_system_version = "22.04"
+}
+
+# ---------------------------------------------------------
+# Instance
+# ---------------------------------------------------------
+
+resource "oci_core_instance" "n8n_instance" {
+  display_name        = "n8n-instance"
+  availability_domain = data.oci_identity_availability_domains.ads.availability_domains[0].name
+  compartment_id      = var.tenancy_ocid
 
   shape = "VM.Standard.E2.1.Micro"
 
@@ -23,4 +54,8 @@ resource "oci_core_instance" "n8n_instance" {
   create_vnic_details {
     assign_public_ip = true
   }
+}
+
+output "n8n_public_ip" {
+  value = oci_core_instance.n8n_instance.public_ip
 }
