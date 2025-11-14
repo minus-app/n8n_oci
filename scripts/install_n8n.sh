@@ -1,4 +1,6 @@
 #!/bin/bash
+
+# Edit 1
 set -euo pipefail
 
 # Credentials injected by Terraform
